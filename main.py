@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from poseidon_ai_service import ask_poseidon
 from fastapi.middleware.cors import CORSMiddleware
+from poseidon_ai_service import ask_poseidon  # Ensure this file is accessible
 
 app = FastAPI()
 
-# Optional: Allow CORS for frontend integration
+# Enable CORS (adjust allow_origins in prod)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,5 +19,5 @@ class PromptRequest(BaseModel):
 
 @app.post("/poseidon/ask")
 async def poseidon_ask(req: PromptRequest):
-    response = ask_poseidon(req.prompt)
+    response = await ask_poseidon(req.prompt)
     return {"response": response}
