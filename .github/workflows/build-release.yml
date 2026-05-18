@@ -1,0 +1,145 @@
+name: Build & Release APK
+
+# Builds a real installable .apk using React Native / Gradle on GitHub's
+# Ubuntu runner (which already has Android SDK, Java 17, Gradle installed).
+# No Expo account, no EXPO_TOKEN, no secrets required.
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'claude/*'
+      - 'main'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag (e.g. v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+      release_notes:
+        description: 'What changed in this release'
+        required: false
+        default: 'Improvements and fixes'
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest        # Has Android SDK, Java, Gradle pre-installed
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Patch app.json for standalone build
+        # Replaces placeholder projectId with a real UUID so native modules compile
+        run: |
+          UUID=$(cat /proc/sys/kernel/random/uuid)
+          sed -i "s/YOUR_PROJECT_ID/$UUID/g" mobile/app.json
+          echo "Patched projectId: $UUID"
+
+      - name: Generate Android native project (expo prebuild)
+        working-directory: mobile
+        env:
+          EXPO_NO_TELEMETRY: 1
+          CI: 1
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Make Gradle wrapper executable
+        working-directory: mobile/android
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          APK=$(find mobile/android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          cp "$APK" 007-mode.apk
+          echo "APK size: $(du -h 007-mode.apk | cut -f1)"
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
+            echo "notes=${{ inputs.release_notes }}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "notes=See commit history for full changelog." >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v1.0.0" >> $GITHUB_OUTPUT
+            echo "notes=First release — built from branch ${GITHUB_REF#refs/heads/}." >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "007 Mode ${{ steps.meta.outputs.tag }}"
+          body: |
+            ## 007 Mode — Casino Royale Transformation App
+            > ${{ steps.meta.outputs.notes }}
+
+            ---
+
+            ### Download & Install on Android
+            1. Tap **007-mode.apk** below to download
+            2. Phone: **Settings → Security → Install unknown apps** → allow your browser or Files app
+            3. Open the downloaded file → **Install**
+            4. Launch **007 Mode** — all content works immediately, fully offline
+
+            ### First-time setup in the app
+            - Open **Settings** (gear icon on home screen)
+            - Paste your [OpenAI API key](https://platform.openai.com/api-keys) to activate the Bond Coach AI
+            - Everything else (workouts, style, mindset, cocktails, streak) requires no key
+
+            ### iOS
+            Use **Expo Go** + `npx expo start` for development, or build via EAS for TestFlight.
+
+            ---
+
+            | Module | Offline |
+            |---|---|
+            | 7-day Waterson workout plan | ✓ |
+            | Daily streak & mission checklist | ✓ |
+            | Style guide (suits, accessories, grooming) | ✓ |
+            | Mindset directives & daily practices | ✓ |
+            | The Bar (Vesper Martini + more) | ✓ |
+            | Bond Coach AI | Needs OpenAI key |
+
+          files: 007-mode.apk
+          draft: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
