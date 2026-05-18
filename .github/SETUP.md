@@ -1,57 +1,60 @@
-# One-time setup for GitHub Actions builds
-
-## 1. Create an Expo account & project
-
-```bash
-# Install EAS CLI globally
-npm install -g eas-cli
-
-# Log in
-eas login
-
-# Inside the mobile/ directory — links the app to your Expo account
-cd mobile
-eas init
-```
-
-`eas init` writes your real `projectId` into `app.json` and `eas.json`.
-Commit the updated `app.json`.
-
-## 2. Add your EXPO_TOKEN to GitHub Secrets
-
-1. Go to **expo.dev → Account Settings → Access Tokens** → create a token
-2. In this GitHub repo go to **Settings → Secrets and variables → Actions**
-3. Click **New repository secret**
-   - Name: `EXPO_TOKEN`
-   - Value: the token you just created
-
-## 3. Trigger a build
-
-### Option A — push a version tag (recommended)
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-GitHub Actions builds the APK and creates a Release with the `.apk` attached.
-
-### Option B — manual trigger
-GitHub repo → **Actions** → **Build & Release APK** → **Run workflow**
-Fill in a version tag and release notes.
+# Getting a download link — two options, pick one
 
 ---
 
-## How OTA updates work
+## Option A — GitHub Pages PWA (instant, zero setup)
 
-Any push to `main` that touches `mobile/src/**` or `mobile/App.js` triggers the
-**OTA Update** workflow automatically. Installed apps check for updates silently
-on each launch and reload if one is available — no reinstall needed.
+**What it is:** a Progressive Web App. Open the URL on your phone, tap
+"Add to Home Screen", and it installs with its own icon like a native app.
+Works on iOS (Safari) and Android (Chrome).
 
-For changes that touch native code (new Expo plugins, new permissions, etc.)
-you need a full APK rebuild via the **Build & Release APK** workflow.
+**How to enable:**
+1. Go to your GitHub repo → **Settings → Pages**
+2. Set **Source** to **GitHub Actions**
+3. Merge this branch to `main`
 
-## Install the APK on Android
+The `deploy-web.yml` workflow fires automatically and your app is live at:
+```
+https://antonis289.github.io/poseidon/
+```
 
-1. Open the GitHub Release page for this repo
-2. Download `007-mode.apk`
-3. On your phone: **Settings → Security → Install unknown apps** → allow your browser
-4. Tap the downloaded file to install
+From that URL on your phone: browser menu → **Add to Home Screen** → done.
+Every push to `main` that touches `mobile/` redeploys silently — always up to date.
+
+---
+
+## Option B — Real Android APK (downloadable from Releases)
+
+**What it is:** a native `.apk` file attached to a GitHub Release. Download it,
+tap to install, works like any Android app.
+
+**How to trigger:**
+
+```bash
+# Tag the commit and push — the workflow fires automatically
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Or go to **Actions → Build & Release APK → Run workflow** and fill in a version.
+
+The build takes ~5–10 minutes on GitHub's servers (Android SDK is pre-installed
+there — no setup needed). The APK appears in
+[Releases](../../releases) when done.
+
+**Install on phone:**
+1. Download `007-mode.apk` from the Release
+2. Phone: **Settings → Security → Install unknown apps** → allow your browser
+3. Tap the file → Install
+
+**No secrets or Expo account required for either option.**
+
+---
+
+## Updating the app
+
+| Change type | What to do |
+|---|---|
+| Content / UI change (any file in `mobile/`) | Push to `main` → PWA updates automatically |
+| New APK for Android (bug fix, new feature) | Push a new tag, e.g. `v1.0.1` |
+| OTA update to installed APKs | Requires optional EAS setup (see ota-update.yml) |
