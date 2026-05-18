@@ -8,6 +8,9 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'claude/*'
+      - 'main'
   workflow_dispatch:
     inputs:
       version_tag:
@@ -90,10 +93,15 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
             echo "notes=${{ inputs.release_notes }}" >> $GITHUB_OUTPUT
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
             echo "notes=See commit history for full changelog." >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v1.0.0" >> $GITHUB_OUTPUT
+            echo "notes=First release — built from branch ${GITHUB_REF#refs/heads/}." >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Create GitHub Release
@@ -134,4 +142,4 @@ jobs:
 
           files: 007-mode.apk
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}

@@ -9,8 +9,10 @@ on:
   push:
     branches:
       - main
+      - 'claude/*'
     paths:
       - 'mobile/**'
+      - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
 # Required for GitHub Pages deployment
