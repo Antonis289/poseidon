@@ -1,12 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, FlatList, StyleSheet,
   TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fonts, radius } from '../theme';
-import { API_BASE } from '../config';
+import { askBondCoach } from '../services/openai';
+import { getApiKey } from '../services/storage';
 
 const STARTERS = [
   "What's the best workout to build Craig's physique?",
@@ -15,19 +17,26 @@ const STARTERS = [
   "How do I carry myself like Bond in a room?",
 ];
 
-export default function CoachScreen() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: "Good. You're here. I'll be direct — transforming into the Casino Royale version of Bond is a full-spectrum commitment: body, wardrobe, mindset. Ask me anything specific. I don't do vague."
-    }
-  ]);
+const INITIAL_MSG = {
+  role: 'assistant',
+  content: "Good. You're here. I'll be direct — transforming into the Casino Royale version of Bond is a full-spectrum commitment: body, wardrobe, mindset. Ask me anything specific. I don't do vague.",
+};
+
+export default function CoachScreen({ navigation }) {
+  const [messages, setMessages] = useState([INITIAL_MSG]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [apiKey, setApiKey] = useState(null);
   const listRef = useRef(null);
 
+  useFocusEffect(
+    useCallback(() => {
+      getApiKey().then(setApiKey);
+    }, [])
+  );
+
   const send = async (text) => {
-    const msg = text || input.trim();
+    const msg = (text || input).trim();
     if (!msg || loading) return;
     setInput('');
 
@@ -37,24 +46,21 @@ export default function CoachScreen() {
     setLoading(true);
 
     try {
-      const history = next.slice(0, -1).map(m => ({ role: m.role, content: m.content }));
-      const res = await fetch(`${API_BASE}/bond/coach`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, history }),
-      });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-    } catch {
+      const history = next.map(m => ({ role: m.role, content: m.content }));
+      const reply = await askBondCoach(history, apiKey);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "Connection lost. Check your server is running."
+        content: err.message || "Something went wrong. Check your API key in Settings.",
       }]);
     } finally {
       setLoading(false);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
+
+  const noKey = !apiKey;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -65,11 +71,20 @@ export default function CoachScreen() {
           </View>
           <View>
             <Text style={styles.coachName}>Bond Coach</Text>
-            <Text style={styles.coachSub}>Casino Royale Transformation</Text>
+            <Text style={styles.coachSub}>GPT-4o · Casino Royale</Text>
           </View>
         </View>
-        <View style={styles.onlineDot} />
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <Ionicons name="settings-outline" size={20} color={colors.silver} />
+        </TouchableOpacity>
       </View>
+
+      {noKey && (
+        <TouchableOpacity style={styles.keyBanner} onPress={() => navigation.navigate('Settings')}>
+          <Ionicons name="key-outline" size={16} color={colors.gold} />
+          <Text style={styles.keyBannerText}>Add your OpenAI key in Settings to activate the coach →</Text>
+        </TouchableOpacity>
+      )}
 
       <FlatList
         ref={listRef}
@@ -90,9 +105,7 @@ export default function CoachScreen() {
         ) : null}
         renderItem={({ item }) => (
           <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.aiBubble]}>
-            {item.role === 'assistant' && (
-              <Text style={styles.bubbleRole}>COACH</Text>
-            )}
+            {item.role === 'assistant' && <Text style={styles.bubbleRole}>COACH</Text>}
             <Text style={[styles.bubbleText, item.role === 'user' && styles.userText]}>
               {item.content}
             </Text>
@@ -101,7 +114,7 @@ export default function CoachScreen() {
         ListFooterComponent={loading ? (
           <View style={styles.typingRow}>
             <ActivityIndicator size="small" color={colors.gold} />
-            <Text style={styles.typingText}>Responding...</Text>
+            <Text style={styles.typingText}>Thinking...</Text>
           </View>
         ) : null}
       />
@@ -116,7 +129,6 @@ export default function CoachScreen() {
             placeholderTextColor={colors.muted}
             multiline
             maxLength={500}
-            onSubmitEditing={() => send()}
             returnKeyType="send"
           />
           <TouchableOpacity
@@ -135,97 +147,59 @@ export default function CoachScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.cardBorder,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.gold,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.gold,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: colors.background, fontWeight: fonts.bold, fontSize: 12, letterSpacing: 1 },
+  avatarText: { color: colors.background, fontWeight: fonts.bold, fontSize: 11, letterSpacing: 1 },
   coachName: { color: colors.white, fontWeight: fonts.semibold, fontSize: 15 },
   coachSub: { color: colors.muted, fontSize: 11 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2ECC71' },
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.md },
+  keyBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.goldDark + '20', padding: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.goldDark + '40',
+  },
+  keyBannerText: { color: colors.gold, fontSize: 13, flex: 1 },
+  list: { padding: spacing.md, paddingBottom: spacing.md },
   starters: { marginBottom: spacing.lg },
   startersLabel: { color: colors.muted, fontSize: 12, letterSpacing: 1, marginBottom: spacing.sm },
   starter: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder,
+    borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.xs,
   },
   starterText: { color: colors.silver, fontSize: 13 },
   bubble: {
-    maxWidth: '85%',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    marginBottom: spacing.xs,
+    maxWidth: '85%', padding: spacing.md, borderRadius: radius.md, marginBottom: spacing.sm,
   },
   aiBubble: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 2,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder,
+    alignSelf: 'flex-start', borderBottomLeftRadius: 2,
   },
-  userBubble: {
-    backgroundColor: colors.gold,
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 2,
-  },
-  bubbleRole: {
-    color: colors.gold,
-    fontSize: 10,
-    fontWeight: fonts.bold,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
+  userBubble: { backgroundColor: colors.gold, alignSelf: 'flex-end', borderBottomRightRadius: 2 },
+  bubbleRole: { color: colors.gold, fontSize: 10, fontWeight: fonts.bold, letterSpacing: 1.5, marginBottom: 4 },
   bubbleText: { color: colors.offWhite, fontSize: 14, lineHeight: 21 },
   userText: { color: colors.background },
   typingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    alignSelf: 'flex-start',
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    padding: spacing.md, alignSelf: 'flex-start',
   },
   typingText: { color: colors.muted, fontSize: 13 },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: spacing.md,
-    gap: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    backgroundColor: colors.background,
+    flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
+    borderTopWidth: 1, borderTopColor: colors.cardBorder, backgroundColor: colors.background,
   },
   input: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.white,
-    fontSize: 15,
-    maxHeight: 100,
+    flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    color: colors.white, fontSize: 15, maxHeight: 100,
   },
   sendBtn: {
-    width: 44, height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.gold,
+    alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: colors.card },
 });

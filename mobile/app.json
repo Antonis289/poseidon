@@ -4,24 +4,45 @@
     "slug": "bond-transformation",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "backgroundColor": "#0A0A0A"
     },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.bond.transformation"
+      "bundleIdentifier": "com.bond.transformation",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Used to protect your API key"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A"
       },
-      "package": "com.bond.transformation"
+      "package": "com.bond.transformation",
+      "permissions": []
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
+        }
+      ]
+    ]
   }
 }

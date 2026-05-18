@@ -11,9 +11,18 @@ import StyleScreen from '../screens/StyleScreen';
 import MindsetScreen from '../screens/MindsetScreen';
 import CocktailsScreen from '../screens/CocktailsScreen';
 import CoachScreen from '../screens/CoachScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+const TAB_ICONS = {
+  Home: ['home', 'home-outline'],
+  Workout: ['barbell', 'barbell-outline'],
+  Style: ['shirt', 'shirt-outline'],
+  Mindset: ['eye', 'eye-outline'],
+  Cocktails: ['wine', 'wine-outline'],
+};
 
 function HomeTabs() {
   return (
@@ -24,21 +33,16 @@ function HomeTabs() {
           backgroundColor: '#0F0F0F',
           borderTopColor: '#1F1F1F',
           borderTopWidth: 1,
-          paddingBottom: 4,
-          height: 60,
+          paddingBottom: 6,
+          paddingTop: 4,
+          height: 64,
         },
         tabBarActiveTintColor: colors.gold,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontSize: 10, fontWeight: fonts.medium, letterSpacing: 0.5 },
-        tabBarIcon: ({ color, size, focused }) => {
-          const icons = {
-            Home: focused ? 'home' : 'home-outline',
-            Workout: focused ? 'barbell' : 'barbell-outline',
-            Style: focused ? 'shirt' : 'shirt-outline',
-            Mindset: focused ? 'eye' : 'eye-outline',
-            Cocktails: focused ? 'wine' : 'wine-outline',
-          };
-          return <Ionicons name={icons[route.name]} size={22} color={color} />;
+        tabBarIcon: ({ color, focused }) => {
+          const [active, inactive] = TAB_ICONS[route.name];
+          return <Ionicons name={focused ? active : inactive} size={22} color={color} />;
         },
       })}
     >
@@ -68,17 +72,8 @@ export default function AppNavigator() {
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Main" component={HomeTabs} />
-        <Stack.Screen
-          name="Coach"
-          component={CoachScreen}
-          options={{
-            headerShown: true,
-            title: 'Bond Coach',
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.gold,
-            headerTitleStyle: { color: colors.white, fontWeight: fonts.semibold },
-          }}
-        />
+        <Stack.Screen name="Coach" component={CoachScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
