@@ -43,7 +43,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: mobile
-        run: npm ci
+        run: |
+          npm ci
+          npm install react-native-web@~0.19.10 react-dom@18.2.0 @expo/metro-runtime@~3.2.3
 
       - name: Patch app.json for web build
         run: |
