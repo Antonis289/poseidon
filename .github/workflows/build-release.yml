@@ -1,0 +1,115 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag (e.g. v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+      release_notes:
+        description: 'What changed in this release'
+        required: false
+        default: 'Bug fixes and improvements'
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Build APK via EAS cloud
+        working-directory: mobile
+        run: |
+          eas build \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --wait
+
+      - name: Download APK from EAS
+        working-directory: mobile
+        run: |
+          BUILD_URL=$(eas build:list \
+            --platform android \
+            --status finished \
+            --limit 1 \
+            --non-interactive \
+            --json | jq -r '.[0].artifacts.buildUrl')
+
+          echo "APK URL: $BUILD_URL"
+          curl -L "$BUILD_URL" -o ../007-mode.apk
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
+            echo "notes=${{ inputs.release_notes }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "notes=See commit history for changes." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "007 Mode ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## 007 Mode — Casino Royale Transformation App
+            > ${{ steps.tag.outputs.notes }}
+
+            ---
+
+            ### Install on Android (sideload)
+            1. **Download** `007-mode.apk` below
+            2. On your phone go to **Settings → Security → Install unknown apps** and allow your browser/Files app
+            3. Open the downloaded APK and tap **Install**
+            4. Launch **007 Mode** from your home screen
+
+            ### First launch
+            - All workout, style, mindset and cocktail content works offline immediately
+            - Go to **Settings** and paste your **OpenAI API key** to activate the Bond Coach AI
+
+            ### iOS
+            Build locally with `npm run build:ios` (requires Apple Developer account), or run via Expo Go during development.
+
+            ---
+
+            ### What's in this version
+            | Module | Status |
+            |---|---|
+            | 7-day Waterson workout plan | Offline |
+            | Daily streak + mission checklist | Offline |
+            | Style guide (suits, accessories, grooming) | Offline |
+            | Mindset directives & daily practice | Offline |
+            | The Bar (Vesper Martini + more) | Offline |
+            | Bond Coach AI | Requires OpenAI key |
+
+          files: 007-mode.apk
+          draft: false
+          prerelease: false

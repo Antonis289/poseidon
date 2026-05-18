@@ -9,12 +9,18 @@
       "backgroundColor": "#0A0A0A"
     },
     "assetBundlePatterns": ["**/*"],
+    "updates": {
+      "url": "https://u.expo.dev/YOUR_PROJECT_ID",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 3000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.bond.transformation",
-      "infoPlist": {
-        "NSFaceIDUsageDescription": "Used to protect your API key"
-      }
+      "bundleIdentifier": "com.bond.transformation"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,25 +30,12 @@
       "permissions": []
     },
     "web": {
-      "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "extra": {
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": "YOUR_PROJECT_ID"
       }
-    },
-    "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
-          }
-        }
-      ]
-    ]
+    }
   }
 }
